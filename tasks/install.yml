@@ -1,0 +1,40 @@
+---
+- name: check if kafka user exists
+  command: 'id {{ kafka_user }}'
+  ignore_errors: true
+  changed_when: false
+  register: user_exists
+
+- name: add kafka group
+  group:
+    name: '{{ kafka_group }}'
+    state: present
+  when: user_exists is failed
+
+- name: add kafka user
+  user:
+    name: '{{ kafka_user }}'
+    group: '{{ kafka_group }}'
+    comment: 'kafka'
+    home: '{{ kafka_install_dir }}'
+    shell: '/sbin/nologin'
+    system: false
+  when: user_exists is failed
+
+- name: ensure kafka is running
+  service:
+    name: kafka-server
+    enabled: true
+    state: started
+
+- name: list kafka binaries
+  command: 'ls -1 {{ kafka_install_dir }}/bin'
+  register: kafka_binaries
+  changed_when: false
+
+- name: add kafka binaries
+  alternatives:
+    name: '{{ item }}'
+    path: '{{ kafka_install_dir }}/bin/{{ item }}'
+    link: '/usr/bin/{{ item }}'
+  with_items: '{{ kafka_binaries.stdout_lines }}'
